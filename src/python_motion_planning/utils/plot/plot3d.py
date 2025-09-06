@@ -40,7 +40,7 @@ class Plot3D:
 
         plt.show()
 
-    def plotEnv(self, name: str) -> None:
+    def plotEnv(self, name: str, draw_edge=False) -> None:
         '''
         Plot environment with static obstacles.
 
@@ -55,9 +55,22 @@ class Plot3D:
         ax.scatter(self.goal.x, self.goal.y, self.goal.z, marker="s", color="#1155cc", label="Goal")
 
         if isinstance(self.env, Grid3D):
-            obs_x = [x[0] for x in self.env.obstacles]
-            obs_y = [x[1] for x in self.env.obstacles]
-            obs_z = [x[2] for x in self.env.obstacles]
+            if draw_edge:
+                obs_x = [x[0] for x in self.env.obstacles]
+                obs_y = [x[1] for x in self.env.obstacles]
+                obs_z = [x[2] for x in self.env.obstacles]
+            else:
+                obs_x, obs_y, obs_z = [], [], []
+
+                for x, y, z in self.env.obstacles:
+                    if (
+                        x not in (0, self.env.x_range - 1) and
+                        y not in (0, self.env.y_range - 1) and
+                        z not in (0, self.env.z_range - 1)
+                    ):
+                        obs_x.append(x)
+                        obs_y.append(y)
+                        obs_z.append(z)
 
             ax.scatter(obs_x, obs_y, obs_z, c="k", marker="s", label="Obstacles")
 
