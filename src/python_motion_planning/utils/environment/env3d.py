@@ -91,6 +91,11 @@ class Grid3D(Env3D):
                 obstacles.add((0, i, _z -1))
                 obstacles.add((x - 1, i, _z - 1))
 
+        for _x in range(x):
+            for _y in range(y):
+                obstacles.add(_x, _y, 0)
+                obstacles.add(_x, _y, z - 1)
+
         self.update(obstacles)
 
     def update(self, obstacles):

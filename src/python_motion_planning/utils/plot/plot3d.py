@@ -7,13 +7,14 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from ..environment.env3d import Env3D, Grid3D, Map3D, Node3D
 from ..environment.env import Env, Grid, Map, Node
 
 
-class Plot:
-    def __init__(self, start, goal, env: Env):
-        self.start = Node(start, start, 0, 0)
-        self.goal = Node(goal, goal, 0, 0)
+class Plot3D:
+    def __init__(self, start, goal, env: Env3D):
+        self.start = Node3D(start, start, 0, 0)
+        self.goal = Node3D(goal, goal, 0, 0)
         self.env = env
         self.fig = plt.figure("planning")
         self.ax = self.fig.add_subplot()
@@ -47,15 +48,20 @@ class Plot:
         ----------
         name: Algorithm name or some other information
         '''
-        plt.plot(self.start.x, self.start.y, marker="s", color="#ff0000")
-        plt.plot(self.goal.x, self.goal.y, marker="s", color="#1155cc")
 
-        if isinstance(self.env, Grid):
+        ax = self.fig.add_subplot(111, projection="3d")
+
+        ax.scatter(self.start.x, self.start.y, self.start.z, marker="s", color="#ff0000", label="start")
+        ax.scatter(self.goal.x, self.goal.y, self.goal.z, marker="s", color="#1155cc", label="Goal")
+
+        if isinstance(self.env, Grid3D):
             obs_x = [x[0] for x in self.env.obstacles]
             obs_y = [x[1] for x in self.env.obstacles]
-            plt.plot(obs_x, obs_y, "sk")
+            obs_z = [x[2] for x in self.env.obstacles]
 
-        if isinstance(self.env, Map):
+            ax.scatter(obs_x, obs_y, obs_z, c="k", marker="s", label="Obstacles")
+
+        if isinstance(self.env, Map3D):
             ax = self.fig.add_subplot()
             # boundary
             for (ox, oy, w, h) in self.env.boundary:
@@ -85,8 +91,12 @@ class Plot:
                     )
                 )
 
-        plt.title(name)
-        plt.axis("equal")
+        ax.set_title(name)
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.legend()
+        plt.show()
 
     def plotExpand(self, expand: list) -> None:
         '''
