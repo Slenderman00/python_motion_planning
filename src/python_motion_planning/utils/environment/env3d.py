@@ -9,9 +9,9 @@ from abc import ABC, abstractmethod
 from scipy.spatial import cKDTree
 import numpy as np
 
-from .node import Node
+from .node3d import Node3D
 
-class Env3d(ABC):
+class Env3D(ABC):
     """
     Class for building 3-d workspace of robots.
 
@@ -40,7 +40,7 @@ class Env3d(ABC):
     def init(self) -> None:
         pass
 
-class Grid3d(Env3d):
+class Grid3D(Env3D):
     """
     Class for discrete 3-d grid map.
 
@@ -54,19 +54,19 @@ class Grid3d(Env3d):
         
         # allowed motions
         self.motions = [
-            Node((-1, 0, 0), None, 1, None), Node((-1, 1, 0), None, sqrt(2), None),
-            Node((0, 1, 0), None, 1, None), Node((1, 1, 0), None, sqrt(2), None),
-            Node((1, 0, 0), None, 1, None), Node((1, -1, 0), None, sqrt(2), None),
-            Node((0, -1, 0), None, 1, None), Node((-1, -1, 0), None, sqrt(2), None),
-            Node((0, 0, 1), None, 1, None), Node((0, 0, -1), None, 1, None),
-            Node((-1, 0, 1), None, sqrt(2), None), Node((-1, 1, 1), None, sqrt(3), None),
-            Node((0, 1, 1), None, sqrt(2), None), Node((1, 1, 1), None, sqrt(3), None),
-            Node((1, 0, 1), None, sqrt(2), None), Node((1, -1, 1), None, sqrt(3), None),
-            Node((0, -1, 1), None, sqrt(2), None), Node((-1, -1, 1), None, sqrt(3), None),
-            Node((-1, 0, -1), None, sqrt(2), None), Node((-1, 1, -1), None, sqrt(3), None),
-            Node((0, 1, -1), None, sqrt(2), None), Node((1, 1, -1), None, sqrt(3), None),
-            Node((1, 0, -1), None, sqrt(2), None), Node((1, -1, -1), None, sqrt(3), None),
-            Node((0, -1, -1), None, sqrt(2), None), Node((-1, -1, -1), None, sqrt(3), None)
+            Node3D((-1, 0, 0), None, 1, None), Node3D((-1, 1, 0), None, sqrt(2), None),
+            Node3D((0, 1, 0), None, 1, None), Node3D((1, 1, 0), None, sqrt(2), None),
+            Node3D((1, 0, 0), None, 1, None), Node3D((1, -1, 0), None, sqrt(2), None),
+            Node3D((0, -1, 0), None, 1, None), Node3D((-1, -1, 0), None, sqrt(2), None),
+            Node3D((0, 0, 1), None, 1, None), Node3D((0, 0, -1), None, 1, None),
+            Node3D((-1, 0, 1), None, sqrt(2), None), Node3D((-1, 1, 1), None, sqrt(3), None),
+            Node3D((0, 1, 1), None, sqrt(2), None), Node3D((1, 1, 1), None, sqrt(3), None),
+            Node3D((1, 0, 1), None, sqrt(2), None), Node3D((1, -1, 1), None, sqrt(3), None),
+            Node3D((0, -1, 1), None, sqrt(2), None), Node3D((-1, -1, 1), None, sqrt(3), None),
+            Node3D((-1, 0, -1), None, sqrt(2), None), Node3D((-1, 1, -1), None, sqrt(3), None),
+            Node3D((0, 1, -1), None, sqrt(2), None), Node3D((1, 1, -1), None, sqrt(3), None),
+            Node3D((1, 0, -1), None, sqrt(2), None), Node3D((1, -1, -1), None, sqrt(3), None),
+            Node3D((0, -1, -1), None, sqrt(2), None), Node3D((-1, -1, -1), None, sqrt(3), None)
         ]
         
         # obstacles
@@ -98,7 +98,7 @@ class Grid3d(Env3d):
         self.obstacles_tree = cKDTree(np.array(list(obstacles)))
 
 
-class Map3d(Env3d):
+class Map3D(Env3D):
     """
     Class for continuous 3-d map.
 
@@ -122,10 +122,12 @@ class Map3d(Env3d):
         # TODO: what the fuck is this?
         # boundary of environment
         self.boundary = [
-            [0, 0, 1, y],
-            [0, y, x, 1],
-            [1, 0, x, 1],
-            [x, 1, 1, y]
+            [0, 0, 0, x, y, 0],
+            [0, 0, z, x, y, z],
+            [0, 0, 0, x, 0, z],
+            [0, y, 0, x, y, z],
+            [0, 0, 0, 0, y, z],
+            [x, 0, 0, x, y, z]
         ]
         self.obs_rect = []
         self.obs_circ = []
