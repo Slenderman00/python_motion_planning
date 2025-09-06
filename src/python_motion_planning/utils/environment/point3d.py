@@ -81,7 +81,7 @@ class Point3D(object):
         return hash((self.x, self.y, self.z))
 
     def __str__(self) -> str:
-        return "Point2D({}, {}, {})".format(self.x, self.y, self.z)
+        return "Point3D({}, {}, {})".format(self.x, self.y, self.z)
 
     def __repr__(self) -> str:
         return self.__str__()
