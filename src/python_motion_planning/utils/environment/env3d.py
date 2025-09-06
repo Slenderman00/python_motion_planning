@@ -85,11 +85,11 @@ class Grid3d(Env3d):
         # TODO: We also need to create a top and bottom border
         for _z in range(z):
             for i in range(x):
-                obstacles.add((i, 0))
-                obstacles.add((i, y - 1))
+                obstacles.add((i, 0, _z - 1))
+                obstacles.add((i, y - 1, _z - 1))
             for i in range(y):
-                obstacles.add((0, i))
-                obstacles.add((x - 1, i))
+                obstacles.add((0, i, _z -1))
+                obstacles.add((x - 1, i, _z - 1))
 
         self.update(obstacles)
 
