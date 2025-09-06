@@ -51,12 +51,24 @@ class Grid3d(Env3d):
     """
     def __init__(self, x_range: int, y_range: int, z_range: int) -> None:
         super().__init__(x_range, y_range, z_range)
-        # TODO: What the fuck does this do?
+        
         # allowed motions
-        self.motions = [Node((-1, 0), None, 1, None), Node((-1, 1),  None, sqrt(2), None),
-                        Node((0, 1),  None, 1, None), Node((1, 1),   None, sqrt(2), None),
-                        Node((1, 0),  None, 1, None), Node((1, -1),  None, sqrt(2), None),
-                        Node((0, -1), None, 1, None), Node((-1, -1), None, sqrt(2), None)]
+        self.motions = [
+            Node((-1, 0, 0), None, 1, None), Node((-1, 1, 0), None, sqrt(2), None),
+            Node((0, 1, 0), None, 1, None), Node((1, 1, 0), None, sqrt(2), None),
+            Node((1, 0, 0), None, 1, None), Node((1, -1, 0), None, sqrt(2), None),
+            Node((0, -1, 0), None, 1, None), Node((-1, -1, 0), None, sqrt(2), None),
+            Node((0, 0, 1), None, 1, None), Node((0, 0, -1), None, 1, None),
+            Node((-1, 0, 1), None, sqrt(2), None), Node((-1, 1, 1), None, sqrt(3), None),
+            Node((0, 1, 1), None, sqrt(2), None), Node((1, 1, 1), None, sqrt(3), None),
+            Node((1, 0, 1), None, sqrt(2), None), Node((1, -1, 1), None, sqrt(3), None),
+            Node((0, -1, 1), None, sqrt(2), None), Node((-1, -1, 1), None, sqrt(3), None),
+            Node((-1, 0, -1), None, sqrt(2), None), Node((-1, 1, -1), None, sqrt(3), None),
+            Node((0, 1, -1), None, sqrt(2), None), Node((1, 1, -1), None, sqrt(3), None),
+            Node((1, 0, -1), None, sqrt(2), None), Node((1, -1, -1), None, sqrt(3), None),
+            Node((0, -1, -1), None, sqrt(2), None), Node((-1, -1, -1), None, sqrt(3), None)
+        ]
+        
         # obstacles
         self.obstacles = None
         self.obstacles_tree = None
