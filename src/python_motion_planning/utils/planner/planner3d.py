@@ -10,7 +10,7 @@ from ..environment.env3d import Env3D, Node3D
 from ..plot.plot3d import Plot3D
 
 class Planner3D(ABC):
-    def __init__(self, start: tuple, goal: tuple, env: Env) -> None:
+    def __init__(self, start: tuple, goal: tuple, env: Env3D) -> None:
         # plannig start and goal
         self.start = Node3D(start, start, 0, 0)
         self.goal = Node3D(goal, goal, 0, 0)

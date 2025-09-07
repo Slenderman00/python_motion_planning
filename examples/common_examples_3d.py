@@ -6,7 +6,9 @@
 """
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from python_motion_planning import *
+# from python_motion_planning import *
+from python_motion_planning.utils import Env3D, Grid3D, Map3D
+from python_motion_planning.global_planner.graph_search import AStar3D
 
 if __name__ == '__main__':
     # Create environment with custom obstacles
@@ -38,10 +40,10 @@ if __name__ == '__main__':
     ]
     map_env.update(obs_rect=obs_rect, obs_circ=obs_circ)
 
-    plot3d = Plot3D(start=(5, 5, 5), goal=(25, 31, 22), env=grid_env)
-    plot3d.plotEnv("test")
+    # plot3d = Plot3D(start=(5, 5, 5), goal=(25, 31, 22), env=grid_env)
+    # plot3d.plotEnv("test")
     # -------------global planners-------------
-    # plt = AStar(start=(5, 5), goal=(45, 25), env=grid_env)
+    plt = AStar3D(start=(5, 5, 2), goal=(25, 29, 22), env=grid_env)
     # plt = DStar(start=(5, 5), goal=(45, 25), env=grid_env)
     # plt = DStarLite(start=(5, 5), goal=(45, 25), env=grid_env)
     # plt = Dijkstra(start=(5, 5), goal=(45, 25), env=grid_env)
@@ -61,8 +63,7 @@ if __name__ == '__main__':
     # plt = ACO(start=(5, 5), goal=(45, 25), env=grid_env)
     # plt = PSO(start=(5, 5), goal=(45, 25), env=grid_env)
 
-    # plt.run()
-
+    plt.run()
     # -------------local planners-------------
     # plt = PID(start=(5, 5, 0), goal=(45, 25, 0), env=grid_env)
     # plt = DWA(start=(5, 5, 0), goal=(45, 25, 0), env=grid_env)

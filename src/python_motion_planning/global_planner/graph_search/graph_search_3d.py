@@ -18,7 +18,7 @@ class GraphSearcher3D(Planner3D):
         env (Grid): environment
         heuristic_type (str): heuristic function type
     """
-    def __init__(self, start: tuple, goal: tuple, env: Grid, heuristic_type: str="euclidean") -> None:
+    def __init__(self, start: tuple, goal: tuple, env: Grid3D, heuristic_type: str="euclidean") -> None:
         super().__init__(start, goal, env)
         # heuristic type
         self.heuristic_type = heuristic_type
@@ -86,7 +86,7 @@ class GraphSearcher3D(Planner3D):
         dx, dy, dz = x2 - x1, y2 - y1, z2 - z1
 
         if max(abs(dx), abs(dy), abs(dz)) > 1:
-            return False
+            return True #Switched from false
 
         changes = (dx != 0) + (dy != 0) + (dz != 0)
 

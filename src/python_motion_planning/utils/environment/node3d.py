@@ -37,11 +37,11 @@ class Node3D(object):
         self.h = h
     
     def __add__(self, node):
-        assert isinstance(node, Node)
-        return Node((self.x + node.x, self.y + node.y, self.z + node.z), self.parent, self.g + node.g, self.h)
+        assert isinstance(node, Node3D)
+        return Node3D((self.x + node.x, self.y + node.y, self.z + node.z), self.parent, self.g + node.g, self.h)
 
     def __eq__(self, node) -> bool:
-        if not isinstance(node, Node):
+        if not isinstance(node, Node3D):
             return False
         return self.current == node.current
     
@@ -49,7 +49,7 @@ class Node3D(object):
         return not self.__eq__(node)
 
     def __lt__(self, node) -> bool:
-        assert isinstance(node, Node)
+        assert isinstance(node, Node3D)
         return self.g + self.h < node.g + node.h or \
                 (self.g + self.h == node.g + node.h and self.h < node.h)
 

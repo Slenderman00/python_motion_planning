@@ -1,11 +1,12 @@
 """
-Plot tools 2D
-@author: huiming zhou
+Plot tools 3D
+@author: huiming zhou (3D refactor)
 """
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
+import time
 
 from ..environment.env3d import Env3D, Grid3D, Map3D, Node3D
 from ..environment.env import Env, Grid, Map, Node
@@ -13,21 +14,50 @@ from ..environment.env import Env, Grid, Map, Node
 
 class Plot3D:
     def __init__(self, start, goal, env: Env3D):
-        self.start = Node3D(start, start, 0, 0)
-        self.goal = Node3D(goal, goal, 0, 0)
+        # Accept (x,y,z) tuples or Node3D for start/goal
+        sx, sy, sz = self._xyz(start)
+        gx, gy, gz = self._xyz(goal)
+        self.start = Node3D((sx, sy, sz), (sx, sy, sz), 0, 0)
+        self.goal = Node3D((gx, gy, gz), (gx, gy, gz), 0, 0)
+
         self.env = env
         self.fig = plt.figure("planning")
-        self.ax = self.fig.add_subplot()
+        # Keep a 2D axis for cost curves only (no scene drawing here)
+        self.ax2d = self.fig.add_subplot(121) if plt.rcParams.get('figure.subplot.left', None) else None
+        # Main 3D axis
+        self.ax3d = self.fig.add_subplot(111, projection="3d")
 
-    def animation(self, path: list, name: str, cost: float = None, expand: list = None, history_pose: list = None,
-                  predict_path: list = None, lookahead_pts: list = None, cost_curve: list = None,
-                  ellipse: np.ndarray = None) -> None:
-        name = name + "\ncost: " + str(cost) if cost else name
+        # ESC to quit, once
+        self.fig.canvas.mpl_connect(
+            'key_release_event',
+            lambda event: (exit(0) if event.key == 'escape' else None)
+        )
+
+    # =========================
+    # Public API
+    # =========================
+    def animation(
+        self,
+        path: list,
+        name: str,
+        cost: float = None,
+        expand: list = None,
+        history_pose: list = None,
+        predict_path: list = None,
+        lookahead_pts: list = None,
+        cost_curve: list = None,
+        ellipse: np.ndarray = None
+    ) -> None:
+
+        name = f"{name}\ncost: {cost}" if cost is not None else name
         self.plotEnv(name)
+
         if expand is not None:
             self.plotExpand(expand)
+
         if history_pose is not None:
             self.plotHistoryPose(history_pose, predict_path, lookahead_pts)
+
         if path is not None:
             self.plotPath(path)
 
@@ -40,20 +70,18 @@ class Plot3D:
 
         plt.show()
 
-    def plotEnv(self, name: str, draw_edge=False) -> None:
-        '''
+    def plotEnv(self, name: str, draw_edge: bool = False) -> None:
+        """
         Plot environment with static obstacles.
+        """
+        ax = self.ax3d
+        ax.cla()
 
-        Parameters
-        ----------
-        name: Algorithm name or some other information
-        '''
-
-        ax = self.fig.add_subplot(111, projection="3d")
-
-        ax.scatter(self.start.x, self.start.y, self.start.z, marker="s", color="#ff0000", label="start")
+        # Start/Goal
+        ax.scatter(self.start.x, self.start.y, self.start.z, marker="s", color="#ff0000", label="Start")
         ax.scatter(self.goal.x, self.goal.y, self.goal.z, marker="s", color="#1155cc", label="Goal")
 
+        # Obstacles
         if isinstance(self.env, Grid3D):
             if draw_edge:
                 obs_x = [x[0] for x in self.env.obstacles]
@@ -61,237 +89,260 @@ class Plot3D:
                 obs_z = [x[2] for x in self.env.obstacles]
             else:
                 obs_x, obs_y, obs_z = [], [], []
-
                 for x, y, z in self.env.obstacles:
                     if (
                         x not in (0, self.env.x_range - 1) and
                         y not in (0, self.env.y_range - 1) and
                         z not in (0, self.env.z_range - 1)
                     ):
-                        obs_x.append(x)
-                        obs_y.append(y)
-                        obs_z.append(z)
+                        obs_x.append(x); obs_y.append(y); obs_z.append(z)
+            if obs_x:
+                ax.scatter(obs_x, obs_y, obs_z, c="k", marker="s", label="Obstacles")
 
-            ax.scatter(obs_x, obs_y, obs_z, c="k", marker="s", label="Obstacles")
+            # Auto-bounds for better aspect
+            ax.set_xlim(0, self.env.x_range)
+            ax.set_ylim(0, self.env.y_range)
+            ax.set_zlim(0, self.env.z_range)
 
-        if isinstance(self.env, Map3D):
-            ax = self.fig.add_subplot()
-            # boundary
-            for (ox, oy, w, h) in self.env.boundary:
-                ax.add_patch(patches.Rectangle(
-                        (ox, oy), w, h,
-                        edgecolor='black',
-                        facecolor='black',
-                        fill=True
-                    )
-                )
-            # rectangle obstacles
-            for (ox, oy, w, h) in self.env.obs_rect:
-                ax.add_patch(patches.Rectangle(
-                        (ox, oy), w, h,
-                        edgecolor='black',
-                        facecolor='gray',
-                        fill=True
-                    )
-                )
-            # circle obstacles
-            for (ox, oy, r) in self.env.obs_circ:
-                ax.add_patch(patches.Circle(
-                        (ox, oy), r,
-                        edgecolor='black',
-                        facecolor='gray',
-                        fill=True
-                    )
-                )
+        elif isinstance(self.env, Map3D):
+            # Draw boundary and obstacles at z=0 as 3D polygons (wireframe fill)
+            polys = []
+            # boundary rectangles (ox, oy, w, h)
+            for (ox, oy, w, h) in getattr(self.env, 'boundary', []):
+                polys.append(self._rect3d(ox, oy, w, h, z=0))
+            for (ox, oy, w, h) in getattr(self.env, 'obs_rect', []):
+                polys.append(self._rect3d(ox, oy, w, h, z=0))
+            for (ox, oy, r) in getattr(self.env, 'obs_circ', []):
+                polys.append(self._circle3d(ox, oy, r, z=0, n=40))
+
+            if polys:
+                # Fill lightly + wireframe
+                collection = Poly3DCollection(polys, facecolors="lightgray", edgecolors="black", alpha=0.5)
+                ax.add_collection3d(collection)
+
+            # Bounds heuristic
+            xs = [v[0] for poly in polys for v in poly] if polys else [self.start.x, self.goal.x]
+            ys = [v[1] for poly in polys for v in poly] if polys else [self.start.y, self.goal.y]
+            ax.set_xlim(min(xs) - 1, max(xs) + 1)
+            ax.set_ylim(min(ys) - 1, max(ys) + 1)
+            # If env has a z range, use it; else infer from start/goal
+            zmin = min(getattr(self.env, 'z_min', 0), self.start.z, self.goal.z)
+            zmax = max(getattr(self.env, 'z_max', 0), self.start.z, self.goal.z) or 1
+            ax.set_zlim(zmin, zmax)
 
         ax.set_title(name)
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_zlabel("Z")
-        ax.legend()
-        plt.show()
+        ax.legend(loc="best")
+
+        self._refresh()
 
     def plotExpand(self, expand: list) -> None:
-        '''
-        Plot expanded grids using in graph searching.
+        """
+        Plot expanded nodes/cells as they are explored (animated).
+        Accepts Node3D or (x,y,z).
+        """
+        ax = self.ax3d
+        expands = [x for x in expand]
 
-        Parameters
-        ----------
-        expand: Expanded grids during searching
-        '''
-        if self.start in expand:
-            expand.remove(self.start)
-        if self.goal in expand:
-            expand.remove(self.goal)
+        # Remove start/goal if they appear in Node3D form or tuple form
+        expands = [e for e in expands if self._xyz(e) != (self.start.x, self.start.y, self.start.z)]
+        expands = [e for e in expands if self._xyz(e) != (self.goal.x, self.goal.y, self.goal.z)]
 
+        total = len(expands)
         count = 0
-        if isinstance(self.env, Grid):
-            for x in expand:
+
+        if isinstance(self.env, Grid3D):
+            for e in expands:
                 count += 1
-                plt.plot(x.x, x.y, color="#dddddd", marker='s')
-                plt.gcf().canvas.mpl_connect('key_release_event',
-                                            lambda event: [exit(0) if event.key == 'escape' else None])
-                if count < len(expand) / 3:         length = 20
-                elif count < len(expand) * 2 / 3:   length = 30
-                else:                               length = 40
-                if count % length == 0:             plt.pause(0.001)
-        
-        if isinstance(self.env, Map):
-            for x in expand:
+                x, y, z = self._xyz(e)
+                ax.plot([x], [y], [z], linestyle='None', marker='s', color="#dddddd")
+                # Adaptive throttling
+                if count < total / 3:
+                    step = 20
+                elif count < 2 * total / 3:
+                    step = 30
+                else:
+                    step = 40
+                if count % step == 0:
+                    self._refresh(0.001)
+
+        elif isinstance(self.env, Map3D):
+            # Expect e.parent to be (px, py, pz)
+            for e in expands:
                 count += 1
-                if x.parent:
-                    plt.plot([x.parent[0], x.x], [x.parent[1], x.y], 
-                        color="#dddddd", linestyle="-")
-                    plt.gcf().canvas.mpl_connect('key_release_event',
-                                                 lambda event:
-                                                 [exit(0) if event.key == 'escape' else None])
+                if getattr(e, "parent", None) is not None:
+                    px, py, pz = e.parent
+                    x, y, z = self._xyz(e)
+                    ax.plot([px, x], [py, y], [pz, z], color="#dddddd", linestyle='-')
                     if count % 10 == 0:
-                        plt.pause(0.001)
+                        self._refresh(0.001)
 
-        plt.pause(0.01)
+        self._refresh()
 
-    def plotPath(self, path: list, path_color: str='#13ae00', path_style: str="-") -> None:
-        '''
-        Plot path in global planning.
+    def plotPath(self, path: list, path_color: str = '#13ae00', path_style: str = "-") -> None:
+        """
+        Plot a 3D path. Accepts list of Node3D or (x,y,z).
+        """
+        if not path:
+            return
+        xs, ys, zs = zip(*[self._xyz(p) for p in path])
+        self.ax3d.plot(xs, ys, zs, path_style, linewidth=2, color=path_color)
+        # Re-draw start/goal on top
+        self.ax3d.scatter(self.start.x, self.start.y, self.start.z, marker="s", color="#ff0000")
+        self.ax3d.scatter(self.goal.x, self.goal.y, self.goal.z, marker="s", color="#1155cc")
+        self._refresh()
 
-        Parameters
-        ----------
-        path: Path found in global planning
-        '''
-        path_x = [path[i][0] for i in range(len(path))]
-        path_y = [path[i][1] for i in range(len(path))]
-        plt.plot(path_x, path_y, path_style, linewidth='2', color=path_color)
-        plt.plot(self.start.x, self.start.y, marker="s", color="#ff0000")
-        plt.plot(self.goal.x, self.goal.y, marker="s", color="#1155cc")
+    def plotAgent(self, pose: tuple, radius: float = 1) -> None:
+        """
+        Plot agent in 3D at pose (x, y, z, theta), where theta is yaw in XY plane.
+        If pose is length-3 (x,y,theta) it assumes z=0.
+        """
+        if len(pose) == 3:
+            x, y, theta = pose
+            z = 0.0
+        else:
+            x, y, z, theta = pose
 
-    def plotAgent(self, pose: tuple, radius: float=1) -> None:
-        '''
-        Plot agent with specifical pose.
-
-        Parameters
-        ----------
-        pose: Pose of agent
-        radius: Radius of agent
-        '''
-        x, y, theta = pose
-        ref_vec = np.array([[radius / 2], [0]])
-        rot_mat = np.array([[np.cos(theta), -np.sin(theta)],
-                            [np.sin(theta),  np.cos(theta)]])
-        end_pt = rot_mat @ ref_vec + np.array([[x], [y]])
-
-        try:
-            self.ax.artists.pop()
-            for art in self.ax.get_children():
-                if isinstance(art, matplotlib.patches.FancyArrow):
+        # Clean previous agent artists (arrow + sphere) if any
+        # We'll tag them with a custom attribute
+        for art in list(self.ax3d.lines) + list(self.ax3d.artists):
+            if hasattr(art, "_is_agent"):
+                try:
                     art.remove()
-        except:
-            pass
+                except Exception:
+                    pass
+        for coll in list(self.ax3d.collections):
+            if hasattr(coll, "_is_agent"):
+                try:
+                    coll.remove()
+                except Exception:
+                    pass
 
-        self.ax.arrow(x, y, float(end_pt[0]) - x, float(end_pt[1]) - y,
-                width=0.1, head_width=0.40, color="r")
-        circle = plt.Circle((x, y), radius, color="r", fill=False)
-        self.ax.add_artist(circle)
+        # Agent center
+        center = self.ax3d.scatter([x], [y], [z])
+        center._is_agent = True  # tag
+
+        # Heading arrow (unit in theta direction)
+        dx, dy, dz = np.cos(theta), np.sin(theta), 0.0
+        q = self.ax3d.quiver([x], [y], [z], [dx], [dy], [dz], length=radius, normalize=True)
+        q._is_agent = True
+
+        self._refresh()
 
     def plotHistoryPose(self, history_pose, predict_path=None, lookahead_pts=None) -> None:
-        lookahead_handler = None
+        """
+        history_pose: list of (x,y,z,theta) or (x,y,theta) where z defaults to 0
+        predict_path: optional list of arrays with shape (N,3) or (N,2)->z=0
+        lookahead_pts: optional list of (x,y,z) or (x,y)->z=0
+        """
+        lookahead_handle = None
+
         for i, pose in enumerate(history_pose):
+            # draw segment to next pose
             if i < len(history_pose) - 1:
-                plt.plot([history_pose[i][0], history_pose[i + 1][0]],
-                    [history_pose[i][1], history_pose[i + 1][1]], c="#13ae00")
-                if predict_path is not None:
-                    plt.plot(predict_path[i][:, 0], predict_path[i][:, 1], c="#ddd")
-            i += 1
+                x1, y1, z1 = self._xyz_pose(history_pose[i])
+                x2, y2, z2 = self._xyz_pose(history_pose[i + 1])
+                self.ax3d.plot([x1, x2], [y1, y2], [z1, z2], c="#13ae00")
+
+                if predict_path is not None and i < len(predict_path):
+                    arr = np.asarray(predict_path[i])
+                    if arr.shape[1] == 2:
+                        zs = np.zeros(arr.shape[0])
+                        self.ax3d.plot(arr[:, 0], arr[:, 1], zs, c="#dddddd")
+                    else:
+                        self.ax3d.plot(arr[:, 0], arr[:, 1], arr[:, 2], c="#dddddd")
 
             # agent
             self.plotAgent(pose)
 
             # lookahead
-            if lookahead_handler is not None:
-                lookahead_handler.remove()
-            if lookahead_pts is not None:
+            if lookahead_handle is not None:
                 try:
-                    lookahead_handler = self.ax.scatter(lookahead_pts[i][0], lookahead_pts[i][1], c="b")
-                except:
-                    lookahead_handler = self.ax.scatter(lookahead_pts[-1][0], lookahead_pts[-1][1], c="b")
+                    lookahead_handle.remove()
+                except Exception:
+                    pass
+            if lookahead_pts is not None:
+                lp = lookahead_pts[i] if i < len(lookahead_pts) else lookahead_pts[-1]
+                lx, ly, lz = self._xyz(lp)
+                lookahead_handle = self.ax3d.scatter([lx], [ly], [lz], c="b")
 
-            plt.gcf().canvas.mpl_connect('key_release_event',
-                                        lambda event: [exit(0) if event.key == 'escape' else None])
-            if i % 5 == 0:             plt.pause(0.03)
+            if i % 5 == 0:
+                self._refresh(0.03)
+
+        self._refresh()
 
     def plotCostCurve(self, cost_list: list, name: str) -> None:
-        '''
-        Plot cost curve with epochs using in evolutionary searching.
-
-        Parameters
-        ----------
-        cost_list: Cost with epochs
-        name: Algorithm name or some other information
-        '''
-        plt.plot(cost_list, color="b")
+        plt.clf()
+        plt.title(name + " — cost")
+        plt.plot(cost_list)
         plt.xlabel("epochs")
         plt.ylabel("cost value")
-        plt.title(name)
-        plt.grid()
+        plt.grid(True)
 
-    def plotEllipse(self, ellipse: np.ndarray, color: str = 'darkorange', linestyle: str = '--', linewidth: float = 2):
-        plt.plot(ellipse[0, :], ellipse[1, :], linestyle=linestyle, color=color, linewidth=linewidth)
+    def plotEllipse(self, ellipse: np.ndarray, color: str = 'darkorange', linestyle: str = '--', linewidth: float = 2, z: float = None):
+        """
+        ellipse: shape (2,N) or (3,N). If 2×N, draws at z (defaults to start.z).
+        """
+        if ellipse.shape[0] == 2:
+            z = self.start.z if z is None else z
+            xs, ys = ellipse[0, :], ellipse[1, :]
+            zs = np.full_like(xs, z, dtype=float)
+        else:
+            xs, ys, zs = ellipse[0, :], ellipse[1, :], ellipse[2, :]
+
+        self.ax3d.plot(xs, ys, zs, linestyle=linestyle, color=color, linewidth=linewidth)
+        self._refresh()
 
     def connect(self, name: str, func) -> None:
         self.fig.canvas.mpl_connect(name, func)
 
     def clean(self):
-        plt.cla()
+        self.ax3d.cla()
+        self._refresh()
 
     def update(self):
+        self._refresh()
+
+    # =========================
+    # Helpers
+    # =========================
+    @staticmethod
+    def _xyz(obj):
+        """Return (x,y,z) from Node3D/Node/tuple/list."""
+        if hasattr(obj, 'x') and hasattr(obj, 'y'):
+            z = getattr(obj, 'z', 0.0)
+            return float(obj.x), float(obj.y), float(z)
+        # tuple/list
+        if len(obj) == 2:
+            return float(obj[0]), float(obj[1]), 0.0
+        return float(obj[0]), float(obj[1]), float(obj[2])
+
+    @staticmethod
+    def _xyz_pose(pose):
+        """Pose may be (x,y,theta) or (x,y,z,theta)."""
+        if len(pose) == 3:
+            x, y, th = pose
+            return float(x), float(y), 0.0
+        x, y, z, _ = pose
+        return float(x), float(y), float(z)
+
+    @staticmethod
+    def _rect3d(ox, oy, w, h, z=0.0):
+        return [(ox, oy, z),
+                (ox + w, oy, z),
+                (ox + w, oy + h, z),
+                (ox, oy + h, z)]
+
+    @staticmethod
+    def _circle3d(cx, cy, r, z=0.0, n=36):
+        t = np.linspace(0, 2*np.pi, n, endpoint=True)
+        return [(cx + r*np.cos(tt), cy + r*np.sin(tt), z) for tt in t]
+
+    def _refresh(self, sleep_s: float = 0.0):
         self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
+        if sleep_s > 0:
+            time.sleep(sleep_s)
 
-    @staticmethod
-    def plotArrow(x, y, theta, length, color):
-        angle = np.deg2rad(30)
-        d = 0.5 * length
-        w = 2
-
-        x_start, y_start = x, y
-        x_end = x + length * np.cos(theta)
-        y_end = y + length * np.sin(theta)
-
-        theta_hat_L = theta + np.pi - angle
-        theta_hat_R = theta + np.pi + angle
-
-        x_hat_start = x_end
-        x_hat_end_L = x_hat_start + d * np.cos(theta_hat_L)
-        x_hat_end_R = x_hat_start + d * np.cos(theta_hat_R)
-
-        y_hat_start = y_end
-        y_hat_end_L = y_hat_start + d * np.sin(theta_hat_L)
-        y_hat_end_R = y_hat_start + d * np.sin(theta_hat_R)
-
-        plt.plot([x_start, x_end], [y_start, y_end], color=color, linewidth=w)
-        plt.plot([x_hat_start, x_hat_end_L], [y_hat_start, y_hat_end_L], color=color, linewidth=w)
-        plt.plot([x_hat_start, x_hat_end_R], [y_hat_start, y_hat_end_R], color=color, linewidth=w)
-
-    @staticmethod
-    def plotCar(x, y, theta, width, length, color):
-        theta_B = np.pi + theta
-
-        xB = x + length / 4 * np.cos(theta_B)
-        yB = y + length / 4 * np.sin(theta_B)
-
-        theta_BL = theta_B + np.pi / 2
-        theta_BR = theta_B - np.pi / 2
-
-        x_BL = xB + width / 2 * np.cos(theta_BL)        # Bottom-Left vertex
-        y_BL = yB + width / 2 * np.sin(theta_BL)
-        x_BR = xB + width / 2 * np.cos(theta_BR)        # Bottom-Right vertex
-        y_BR = yB + width / 2 * np.sin(theta_BR)
-
-        x_FL = x_BL + length * np.cos(theta)               # Front-Left vertex
-        y_FL = y_BL + length * np.sin(theta)
-        x_FR = x_BR + length * np.cos(theta)               # Front-Right vertex
-        y_FR = y_BR + length * np.sin(theta)
-
-        plt.plot([x_BL, x_BR, x_FR, x_FL, x_BL],
-                 [y_BL, y_BR, y_FR, y_FL, y_BL],
-                 linewidth=1, color=color)
-
-        Plot.plotArrow(x, y, theta, length / 2, color)
