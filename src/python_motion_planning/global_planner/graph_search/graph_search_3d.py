@@ -86,7 +86,7 @@ class GraphSearcher3D(Planner3D):
         dx, dy, dz = x2 - x1, y2 - y1, z2 - z1
 
         if max(abs(dx), abs(dy), abs(dz)) > 1:
-            return True #Switched from false
+            return False #Switched from false
 
         changes = (dx != 0) + (dy != 0) + (dz != 0)
 
