@@ -40,7 +40,7 @@ class AStar3D(GraphSearcher3D):
         heapq.heappush(OPEN, (self.start.g + self.start.h, self.start.h, next(counter), self.start))
 
         expansions = 0
-        log_interval = 1000  # how often to log
+        log_interval = 1000
 
         while OPEN:
             _, _, _, node = heapq.heappop(OPEN)
