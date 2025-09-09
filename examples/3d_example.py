@@ -1,14 +1,13 @@
-
 """
 @file: common_examples_3d.py
 @brief: Minimal, easy-to-debug 3D maps for pathfinding sanity checks
-@author: Wu Maojia, Joar Heimonen (simplified by ChatGPT)
-@update: 2025.09.07
+@author: Joar Heimonen
+@update: 2025.09.09
 """
 import sys, os, argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_motion_planning.utils import Grid3D
-from python_motion_planning.global_planner.graph_search import AStar3D
+from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D
 
 
 def shell_walls(grid):
@@ -104,6 +103,12 @@ if __name__ == '__main__':
     parser.add_argument("--width", type=int, default=21, help="Grid size X")
     parser.add_argument("--height", type=int, default=15, help="Grid size Y")
     parser.add_argument("--depth", type=int, default=11, help="Grid size Z")
+    parser.add_argument(
+        "--planner",
+        choices=["astar", "dstar"],
+        default="astar",
+        help="Which planner to run"
+    )
     args = parser.parse_args()
 
     grid_env = Grid3D(args.width, args.height, args.depth)
@@ -126,7 +131,12 @@ if __name__ == '__main__':
 
     grid_env.update(obstacles)
 
-    planner = AStar3D(start=start, goal=goal, env=grid_env, heuristic_type="euclidean")
+    if args.planner == "astar":
+        planner = AStar3D(start=start, goal=goal, env=grid_env, heuristic_type="euclidean")
+    else:
+        # D* is in the same module as A*, per your layout
+        planner = DStar3D(start=start, goal=goal, env=grid_env)
+
     planner.run()
 
     # Keep viewer alive if your vis relies on a running process

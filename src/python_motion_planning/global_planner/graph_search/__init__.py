@@ -4,6 +4,7 @@ from .dijkstra import Dijkstra
 from .gbfs import GBFS
 from .jps import JPS
 from .d_star import DStar
+from .d_star3d import DStar3D
 from .lpa_star import LPAStar
 from .d_star_lite import DStarLite
 from .voronoi import VoronoiPlanner
@@ -19,6 +20,7 @@ __all__ = ["AStar",
            "GBFS",
            "JPS",
            "DStar",
+           "DStar3D",
            "LPAStar",
            "DStarLite",
            "VoronoiPlanner",
