@@ -84,7 +84,7 @@ class LPAStar3D(GraphSearcher3D):
         """Compute/repair shortest path and return (cost, path, None)."""
         self.computeShortestPath()
         cost, path = self.extractPath()
-        return cost, path, None
+        return cost, path, self.EXPAND
 
     def run(self) -> None:
         cost, path, _ = self.plan()
