@@ -9,6 +9,7 @@ from .jps3d import JPS3D
 from .d_star import DStar
 from .d_star3d import DStar3D
 from .lpa_star import LPAStar
+from .lpa_star3d import LPAStar3D
 from .d_star_lite import DStarLite
 from .voronoi import VoronoiPlanner
 from .voronoi3d import VoronoiPlanner3D
@@ -31,6 +32,7 @@ __all__ = ["AStar",
            "DStar",
            "DStar3D",
            "LPAStar",
+           "LPAStar3D",
            "DStarLite",
            "VoronoiPlanner",
            "VoronoiPlanner3D",

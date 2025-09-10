@@ -7,7 +7,7 @@
 import sys, os, argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_motion_planning.utils import Grid3D
-from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D, GBFS3D, JPS3D, LazyThetaStar3D, ThetaStar3D, VoronoiPlanner3D
+from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D, GBFS3D, JPS3D, LazyThetaStar3D, ThetaStar3D, VoronoiPlanner3D, LPAStar3D
 
 
 def shell_walls(grid):
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--planner",
         "-p",
-        choices=["astar", "dstar", "dijkstra", "gbfs", "jps", "lazy_theta_star", "theta_star", "voronoi"],
+        choices=["astar", "dstar", "dijkstra", "gbfs", "jps", "lazy_theta_star", "theta_star", "voronoi", "lpastar"],
         default="astar",
         help="Which planner to run"
     )
@@ -155,6 +155,9 @@ if __name__ == '__main__':
 
     if args.planner == "voronoi":
         planner = VoronoiPlanner3D(start=start, goal=goal, env=grid_env)
+    
+    if args.planner == "lpastar":
+        planner = LPAStar3D(start=start, goal=goal, env=grid_env)
     
     planner.run()
 
