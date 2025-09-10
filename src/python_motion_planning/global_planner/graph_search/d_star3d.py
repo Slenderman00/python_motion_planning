@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 import logging
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from .graph_search_3d import GraphSearcher3D
 from python_motion_planning.utils import Env3D, Node3D, Grid3D
@@ -17,36 +17,34 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 
-Coord3D = Tuple[int, int, int]
-
 
 class DNode3D(Node3D):
     """
-    D* node in 3D.
+    D* node in 3D using only tuple coordinates in .current.
 
     Args:
-        current: (x, y, z)
+        current: (x, y, z) tuple
         parent: parent coordinate (or None)
         t: state label in {'NEW','OPEN','CLOSED'}
         h: current best cost-to-go (from goal to this node)
         k: minimum historical h during OPEN processing (D*'s priority key)
     """
-    __slots__ = ("current", "parent", "t", "h", "k", "x", "y", "z")
+    __slots__ = ("current", "parent", "t", "h", "k")
 
-    def __init__(self, current: Coord3D, parent: Optional[Coord3D], t: str, h: float, k: float) -> None:
-        # Initialize Node3D so x,y,z props exist
-        super().__init__(*current)
-        self.current: Coord3D = current
-        self.parent: Optional[Coord3D] = parent
+    def __init__(self, current, parent, t: str, h: float, k: float) -> None:
+        # Make sure base Node3D bookkeeping exists, but we won't use .x/.y/.z anywhere.
+        Node3D.__init__(self, current, parent, 0.0, 0.0)
+        self.current = current
+        self.parent = parent
         self.t: str = t
         self.h: float = h
         self.k: float = k
 
     def __add__(self, other: "DNode3D") -> "DNode3D":
-        """Vector addition used for motion to neighbor coordinates."""
-        nx, ny, nz = self.x + other.x, self.y + other.y, self.z + other.z
-        # h/k/t/parent fields on this temp node are irrelevant; only .current is used.
-        return DNode3D((nx, ny, nz), self.current, self.t, self.h, self.k)
+        # Not required for D*, but kept for convenience tests.
+        cx, cy, cz = self.current
+        ox, oy, oz = other.current
+        return DNode3D((cx + ox, cy + oy, cz + oz), self.parent, self.t, self.h, self.k)
 
     def __repr__(self) -> str:
         return (f"DNode3D(current={self.current}, parent={self.parent}, "
@@ -67,32 +65,25 @@ class DStar3D(GraphSearcher3D):
         start: (x, y, z)
         goal: (x, y, z)
         env: Grid3D
-
-    Example:
-        >>> import python_motion_planning as pmp
-        >>> grid = pmp.Grid3D(51, 31, 21)  # x,y,z sizes
-        >>> planner = pmp.DStar3D((5,5,5), (45,25,15), grid)
-        >>> cost, path, _ = planner.plan()
     """
 
-    def __init__(self, start: Coord3D, goal: Coord3D, env: Grid3D) -> None:
+    def __init__(self, start: tuple, goal: tuple, env: Grid3D) -> None:
         super().__init__(start, goal, env, None)  # GraphSearcher3D sets env/obstacles/metrics
+
         self.start = DNode3D(start, None, "NEW", float("inf"), float("inf"))
         self.goal = DNode3D(goal, None, "NEW", 0.0, float("inf"))
 
-        # Motions: convert base env motions (Node3D-like) into DNode3D with (dx,dy,dz) and cost in .h holder
-        # We only use motion.current for coordinate deltas and motion.g for step cost via self.cost()
+        # Motions: copy env's step vectors (dx,dy,dz) into light DNode3D holders.
         self.motions: List[DNode3D] = [
-            DNode3D(m.current, None, "NEW", getattr(m, "g", 0.0), 0.0)  # h carries step cost if needed
-            for m in self.env.motions
+            DNode3D(m.current, None, "NEW", 0.0, 0.0) for m in self.env.motions
         ]
 
-        # OPEN (priority by .k) and an expansion trace
+        # OPEN (priority by .k) and an expansion trace for visualization
         self.OPEN: List[DNode3D] = []
         self.EXPAND: List[DNode3D] = []
 
-        # Map of all voxels to D* bookkeeping nodes
-        self.map: Dict[Coord3D, DNode3D] = {
+        # Map all voxels to D* bookkeeping nodes
+        self.map: Dict[tuple, DNode3D] = {
             s: DNode3D(s, None, "NEW", float("inf"), float("inf")) for s in self.env.grid_map
         }
         self.map[self.goal.current] = self.goal
@@ -106,33 +97,35 @@ class DStar3D(GraphSearcher3D):
 
     # ---------- Public API ----------
 
-    def plan(self) -> Tuple[float, List[Coord3D], None]:
+    def plan(self) -> tuple:
         """Run static planning once from goal to start (classic D* init)."""
         while True:
             kmin = self.processState()
-            if kmin < 0:  # OPEN empty
+            if kmin < 0:                  # OPEN empty
                 break
-            if self.start.t == "CLOSED":
+            if self.start.t == "CLOSED":  # start has been settled
                 break
         cost, path = self.extractPath(self.map)
-        return cost, path, None
+        return cost, path, list(self.EXPAND)
 
-    def apply_dynamic_obstacles(self, newly_blocked: Iterable[Coord3D]) -> Tuple[float, List[Coord3D]]:
+    def run(self) -> None:
+        cost, path, expand = self.plan()
+        self.plot.animation(path, str(self), cost, expand)
+
+    def apply_dynamic_obstacles(self, newly_blocked: Iterable[tuple]) -> tuple:
         """
         Update environment with new blocked voxels and locally replan from the
         current start back-pointer chain toward the goal (D*'s modify loop).
 
-        Returns updated (cost, path). Call this whenever the world changes.
+        Returns updated (cost, path).
         """
-        # Update obstacle set/env
         for v in newly_blocked:
             self.obstacles.add(v)
         self.env.update(self.obstacles)
 
-        # Walk the backpointers from start to goal, repairing as needed
         node = self.start
         self.EXPAND.clear()
-        path: List[Coord3D] = []
+        path: List[tuple] = []
         cost: float = 0.0
 
         while node != self.goal:
@@ -157,14 +150,14 @@ class DStar3D(GraphSearcher3D):
 
     # ---------- Core D* methods ----------
 
-    def extractPath(self, closed_list: Dict[Coord3D, DNode3D]) -> Tuple[float, List[Coord3D]]:
+    def extractPath(self, closed_list: Dict[tuple, DNode3D]) -> tuple:
         """Follow backpointers from start to goal to produce path and cost."""
         cost = 0.0
         node = self.start
         path = [node.current]
         while node != self.goal:
             if node.parent is None:
-                # No connection found yet, force the algorithm to continue
+                # No connection found yet
                 break
             node_parent = closed_list[node.parent]
             cost += self.cost(node, node_parent)
@@ -221,7 +214,8 @@ class DStar3D(GraphSearcher3D):
                         # LOWER occurred in CLOSED neighbor; reinsert neighbor
                         self.insert(node_n, node_n.h)
 
-        return self.min_k if self.min_state is not None else -1.0
+        s = self.min_state
+        return s.k if s is not None else -1.0
 
     @property
     def min_state(self) -> Optional[DNode3D]:
@@ -232,8 +226,9 @@ class DStar3D(GraphSearcher3D):
 
     @property
     def min_k(self) -> float:
-        """Minimum k in OPEN (assumes non-empty)."""
-        return self.min_state.k  # type: ignore[union-attr]
+        """Minimum k in OPEN (guard for empties)."""
+        s = self.min_state
+        return s.k if s is not None else float("inf")
 
     def insert(self, node: DNode3D, h_new: float) -> None:
         """
@@ -270,16 +265,16 @@ class DStar3D(GraphSearcher3D):
 
     def getNeighbor(self, node: DNode3D) -> List[DNode3D]:
         """
-        Collect valid, non-colliding 26-connected neighbors (or whatever `env.motions` defines).
+        Collect valid, non-colliding neighbors using tuple math only.
         """
         neighbors: List[DNode3D] = []
+        cx, cy, cz = node.current
         for motion in self.motions:
-            nxt = (node.x + motion.x, node.y + motion.y, node.z + motion.z)
-            # Bounds/known-voxel check
+            dx, dy, dz = motion.current
+            nxt = (cx + dx, cy + dy, cz + dz)
             if nxt not in self.map:
                 continue
             n = self.map[nxt]
-            # Collision check on the edge (node -> n) in 3D
             if not self.isCollision(node, n):
                 neighbors.append(n)
         return neighbors
