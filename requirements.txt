@@ -11,3 +11,8 @@ mkdocstrings-python==1.12.2
 mkdocs-material # >=9.5.45
 mike
 pyvista
+pandas
+tqdm
+jupyter
+notebook
+.
