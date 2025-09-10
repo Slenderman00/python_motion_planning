@@ -19,7 +19,8 @@ dependencies = [
     "matplotlib",
     "cvxopt",
     "osqp",
-    "tqdm"
+    "tqdm",
+    "pyvista"
 ]
 classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
