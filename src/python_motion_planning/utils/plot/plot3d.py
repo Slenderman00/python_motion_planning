@@ -6,6 +6,7 @@ import pyvista as pv
 from ..environment.env3d import Env3D, Grid3D, Map3D, Node3D
 from ..environment.env import Env, Grid, Map, Node
 
+pv.global_theme.allow_empty_mesh = True
 
 class Plot3D:
     def __init__(self, start, goal, env: Env3D):

@@ -7,7 +7,7 @@
 import sys, os, argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_motion_planning.utils import Grid3D
-from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D
+from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D, GBFS3D, JPS3D, LazyThetaStar3D, ThetaStar3D, VoronoiPlanner3D
 
 
 def shell_walls(grid):
@@ -105,7 +105,8 @@ if __name__ == '__main__':
     parser.add_argument("--depth", type=int, default=11, help="Grid size Z")
     parser.add_argument(
         "--planner",
-        choices=["astar", "dstar", "dijkstra"],
+        "-p",
+        choices=["astar", "dstar", "dijkstra", "gbfs", "jps", "lazy_theta_star", "theta_star", "voronoi"],
         default="astar",
         help="Which planner to run"
     )
@@ -138,9 +139,23 @@ if __name__ == '__main__':
         planner = DStar3D(start=start, goal=goal, env=grid_env)
 
     if args.planner == "dijkstra":
-            planner = Dijkstra3D(start=start, goal=goal, env=grid_env)
+        planner = Dijkstra3D(start=start, goal=goal, env=grid_env)
 
+    if args.planner == "gbfs":
+        planner = GBFS3D(start=start, goal=goal, env=grid_env)
 
+    if args.planner == "jps":
+        planner = JPS3D(start=start, goal=goal, env=grid_env)
+ 
+    if args.planner == "lazy_theta_star":
+        planner = LazyThetaStar3D(start=start, goal=goal, env=grid_env)
+    
+    if args.planner == "theta_star":
+        planner = ThetaStar3D(start=start, goal=goal, env=grid_env)
+
+    if args.planner == "voronoi":
+        planner = VoronoiPlanner3D(start=start, goal=goal, env=grid_env)
+    
     planner.run()
 
     # Keep viewer alive if your vis relies on a running process
