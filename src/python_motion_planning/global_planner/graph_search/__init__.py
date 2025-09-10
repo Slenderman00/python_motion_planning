@@ -1,6 +1,7 @@
 from .a_star import AStar
 from .a_star3d import AStar3D
 from .dijkstra import Dijkstra
+from .dijkstra3d import Dijkstra3D
 from .gbfs import GBFS
 from .jps import JPS
 from .d_star import DStar
@@ -17,6 +18,7 @@ from .s_theta_star import SThetaStar
 __all__ = ["AStar",
            "AStar3D",
            "Dijkstra",
+           "Dijkstra3D",
            "GBFS",
            "JPS",
            "DStar",

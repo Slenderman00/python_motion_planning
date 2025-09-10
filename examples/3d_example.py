@@ -7,7 +7,7 @@
 import sys, os, argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_motion_planning.utils import Grid3D
-from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D
+from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D
 
 
 def shell_walls(grid):
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument("--depth", type=int, default=11, help="Grid size Z")
     parser.add_argument(
         "--planner",
-        choices=["astar", "dstar"],
+        choices=["astar", "dstar", "dijkstra"],
         default="astar",
         help="Which planner to run"
     )
@@ -133,9 +133,13 @@ if __name__ == '__main__':
 
     if args.planner == "astar":
         planner = AStar3D(start=start, goal=goal, env=grid_env, heuristic_type="euclidean")
-    else:
-        # D* is in the same module as A*, per your layout
+ 
+    if args.planner == "dstar":
         planner = DStar3D(start=start, goal=goal, env=grid_env)
+
+    if args.planner == "dijkstra":
+            planner = Dijkstra3D(start=start, goal=goal, env=grid_env)
+
 
     planner.run()
 
