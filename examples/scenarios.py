@@ -147,23 +147,6 @@ def scenario_3d_maze(grid, seed=0, vertical_connector_prob=0.12):
                     obs.add((x, y, z))
     return obs
 
-def shell_walls(grid):
-    XR, YR, ZR = grid.x_range, grid.y_range, grid.z_range
-    obs = set()
-    for x in [0, XR - 1]:
-        for y in range(YR):
-            for z in range(ZR):
-                obs.add((x, y, z))
-    for y in [0, YR - 1]:
-        for x in range(XR):
-            for z in range(ZR):
-                obs.add((x, y, z))
-    for z in [0, ZR - 1]:
-        for x in range(XR):
-            for y in range(YR):
-                obs.add((x, y, z))
-    return obs
-
 def scenario_city_skyscrapers(
     grid,
     seed=0,
