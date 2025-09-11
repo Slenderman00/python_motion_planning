@@ -147,6 +147,126 @@ def scenario_3d_maze(grid, seed=0, vertical_connector_prob=0.12):
                     obs.add((x, y, z))
     return obs
 
+def shell_walls(grid):
+    XR, YR, ZR = grid.x_range, grid.y_range, grid.z_range
+    obs = set()
+    for x in [0, XR - 1]:
+        for y in range(YR):
+            for z in range(ZR):
+                obs.add((x, y, z))
+    for y in [0, YR - 1]:
+        for x in range(XR):
+            for z in range(ZR):
+                obs.add((x, y, z))
+    for z in [0, ZR - 1]:
+        for x in range(XR):
+            for y in range(YR):
+                obs.add((x, y, z))
+    return obs
+
+def scenario_city_skyscrapers(
+    grid,
+    seed=0,
+    street_period=6,     # distance between streets (block size incl. streets)
+    street_width=2,      # how many cells wide each street is
+    lot_margin=1,        # empty margin inside each block before buildings
+    building_density=0.8,# chance a given block gets a building
+    min_tower=3,         # minimum tower height (in cells above the floor)
+    max_tower=None       # max tower height (defaults to ZR-3)
+):
+    """
+    City-like map:
+      - Shell walls (keeps agents in-bounds)
+      - A solid interior floor at z=1
+      - Orthogonal street grid (kept free)
+      - Random skyscrapers (rectangular prisms) on lots between streets
+
+    Notes:
+      * Uses a modulo pattern for streets so you always get corridors.
+      * Start/goal safety is handled by your existing carve_safety_bubble().
+      * Works best with XR, YR >= ~15 and ZR >= ~8.
+    """
+    XR, YR, ZR = grid.x_range, grid.y_range, grid.z_range
+    rng = random.Random(seed)
+    if max_tower is None:
+        max_tower = max(min(ZR - 3, 12), min_tower)  # cap to something sane
+
+    obs = shell_walls(grid)
+
+    # --- Solid interior floor at z=1 (just above bottom shell wall at z=0) ---
+    if ZR >= 3:
+        z_floor = 1
+        for x in range(1, XR - 1):
+            for y in range(1, YR - 1):
+                obs.add((x, y, z_floor))
+
+    # Early out if too shallow to place towers
+    if ZR < 5 or XR < 7 or YR < 7:
+        return obs
+
+    # --- Street mask (kept free) ---
+    def is_street(x, y):
+        return (x % street_period) < street_width or (y % street_period) < street_width
+
+    # --- Iterate blocks between streets and place buildings ---
+    # Blocks are ranges where NOT is_street along x and y.
+    x_positions = list(range(1, XR - 1))
+    y_positions = list(range(1, YR - 1))
+
+    # Find contiguous non-street spans along each axis
+    def spans(axis_positions):
+        spans_out = []
+        start = None
+        for p in axis_positions:
+            if (p % street_period) >= street_width:
+                if start is None:
+                    start = p
+            else:
+                if start is not None:
+                    spans_out.append((start, p - 1))
+                    start = None
+        if start is not None:
+            spans_out.append((start, axis_positions[-1]))
+        return spans_out
+
+    x_blocks = spans(x_positions)
+    y_blocks = spans(y_positions)
+
+    for (x0, x1) in x_blocks:
+        for (y0, y1) in y_blocks:
+            # Optionally skip this block to vary density
+            if rng.random() > building_density:
+                continue
+
+            # Shrink by lot_margin so streets don't get pinched shut
+            bx0 = max(x0 + lot_margin, 1)
+            by0 = max(y0 + lot_margin, 1)
+            bx1 = min(x1 - lot_margin, XR - 2)
+            by1 = min(y1 - lot_margin, YR - 2)
+            if bx1 - bx0 < 1 or by1 - by0 < 1:
+                continue  # too small to host a footprint
+
+            # Pick a random rectangular footprint inside the lot
+            fx0 = rng.randint(bx0, bx1)
+            fx1 = rng.randint(fx0, bx1)
+            fy0 = rng.randint(by0, by1)
+            fy1 = rng.randint(fy0, by1)
+
+            # Random tower height
+            height = rng.randint(min_tower, max_tower)
+            top_z = min(ZR - 2, 1 + height)  # towers rise above the floor
+
+            # Carve the streets free by *not* placing obstacles there;
+            # place obstacles for the tower footprint only.
+            for x in range(fx0, fx1 + 1):
+                for y in range(fy0, fy1 + 1):
+                    # Skip if this voxel falls on a street edge (keeps extra clearance)
+                    if is_street(x, y):
+                        continue
+                    for z in range(2, top_z + 1):  # start at z=2 (above the floor)
+                        obs.add((x, y, z))
+
+    return obs
 
 def carve_safety_bubble(obs, center, radius=1):
     """Guarantee free space around start/goal."""
@@ -161,4 +281,5 @@ scenarios = {
     "door": lambda grid_env: scenario_two_rooms_with_door(grid_env, door_size=2),
     "floors": lambda grid_env: scenario_stacked_floors(grid_env, floors=3, hole_size=2),
     "maze": lambda grid_env: scenario_3d_maze(grid_env, seed=0),
+    "nyc": lambda grid_env: scenario_city_skyscrapers(grid_env),
 }
