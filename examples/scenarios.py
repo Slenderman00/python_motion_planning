@@ -271,10 +271,30 @@ def scenario_city_skyscrapers(
 def carve_safety_bubble(obs, center, radius=1):
     """Guarantee free space around start/goal."""
     cx, cy, cz = center
+    # Determine grid bounds from existing obstacles (assumes shell_walls present)
+    xs = [x for x, _, _ in obs]
+    ys = [y for _, y, _ in obs]
+    zs = [z for _, _, z in obs]
+    if xs and ys and zs:
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        min_z, max_z = min(zs), max(zs)
+    else:
+        # Fallback: allow all
+        min_x = min_y = min_z = 0
+        max_x = max_y = max_z = 999999
     for dx in range(-radius, radius + 1):
         for dy in range(-radius, radius + 1):
             for dz in range(-radius, radius + 1):
-                obs.discard((cx + dx, cy + dy, cz + dz))
+                x, y, z = cx + dx, cy + dy, cz + dz
+                # Only carve if not on boundary
+                if (
+                    x > min_x and x < max_x and
+                    y > min_y and y < max_y and
+                    z > min_z and z < max_z
+                ):
+                    obs.discard((x, y, z))
+
 
 scenarios = {
     "empty": lambda grid_env: scenario_empty_box(grid_env),
