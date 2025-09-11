@@ -9,6 +9,7 @@ from python_motion_planning.utils import Grid3D
 from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D, GBFS3D, JPS3D, LazyThetaStar3D, ThetaStar3D, VoronoiPlanner3D, LPAStar3D
 from python_motion_planning.global_planner.evolutionary_search import ACO3D, PSO3D
 from scenarios import scenarios, carve_safety_bubble
+from algorithms import algorithms
 import time
 import csv
 from tqdm import tqdm
@@ -18,7 +19,7 @@ if __name__ == '__main__':
     height = 15
     depth = 11
 
-    algorithms = [
+    algorithm_names = [
         "astar",
         "dstar",
         "dijkstra",
@@ -37,7 +38,7 @@ if __name__ == '__main__':
         writer.writerow(['Scenario', 'Algorithm', 'Runtime (s)', 'Distance', 'Visited Nodes'])
 
         for scenario, scenario_func in tqdm(scenarios.items()):
-            for algorithm_name in tqdm(algorithms):
+            for algorithm_name in tqdm(algorithm_names):
                 algorithm = algorithms[algorithm_name]
 
                 for i in range(iterations):
@@ -66,6 +67,6 @@ if __name__ == '__main__':
                     runtime = end_time - start_time
 
                     # Write results to CSV
-                    writer.writerow([scenario, algorithm_name.__name__, runtime, cost, visited_nodes])
+                    writer.writerow([scenario, algorithm_name, runtime, cost, visited_nodes])
 
         print("Results saved to 3d_pathfinding_results.csv")

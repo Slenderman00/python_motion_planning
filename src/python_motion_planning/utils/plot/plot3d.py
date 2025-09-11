@@ -45,7 +45,7 @@ class Plot3D:
         self.sense_size    = 5
         self.sense_opacity = 0.9
 
-        self.batch_size = 10  # draw 10 dots/segments per cycle
+        self.batch_size = 100  # draw 10 dots/segments per cycle
 
         self._last_anim = None
 
