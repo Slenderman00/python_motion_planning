@@ -15,4 +15,5 @@ pandas
 tqdm
 jupyter
 notebook
+seaborn
 .

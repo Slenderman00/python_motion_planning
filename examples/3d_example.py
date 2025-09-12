@@ -19,9 +19,9 @@ if __name__ == '__main__':
         default="door",
         help="Which map to generate"
     )
-    parser.add_argument("--width", type=int, default=21, help="Grid size X")
-    parser.add_argument("--height", type=int, default=15, help="Grid size Y")
-    parser.add_argument("--depth", type=int, default=11, help="Grid size Z")
+    parser.add_argument("--width", type=int, default=26, help="Grid size X")
+    parser.add_argument("--height", type=int, default=20, help="Grid size Y")
+    parser.add_argument("--depth", type=int, default=16, help="Grid size Z")
     parser.add_argument(
         "--planner",
         "-p",
@@ -29,14 +29,35 @@ if __name__ == '__main__':
         default="astar",
         help="Which planner to run"
     )
+    parser.add_argument(
+        "--random",
+        action="store_true",
+        help="Enable random start and goal positions"
+    )
     args = parser.parse_args()
+
+    import random
 
     grid_env = Grid3D(args.width, args.height, args.depth)
     XR, YR, ZR = grid_env.x_range, grid_env.y_range, grid_env.z_range
 
-    # Start in one corner, goal in opposite corner (inside the walls)
-    start = (1, 1, 1)
-    goal = (XR - 2, YR - 2, ZR - 2)
+    if args.random:
+        # Pick random free positions inside the grid (not on the walls)
+        def random_pos():
+            return (
+                random.randint(1, XR - 2),
+                random.randint(1, YR - 2),
+                random.randint(1, ZR - 2)
+            )
+        start = random_pos()
+        goal = random_pos()
+        # Ensure start and goal are not the same
+        while goal == start:
+            goal = random_pos()
+    else:
+        # Start in one corner, goal in opposite corner (inside the walls)
+        start = (1, 1, 1)
+        goal = (XR - 2, YR - 2, ZR - 2)
 
     scenario = scenarios[args.scenario]
     obstacles = scenario(grid_env)
@@ -51,7 +72,3 @@ if __name__ == '__main__':
     planner = algorithm(start=start, goal=goal, env=grid_env)
 
     planner.run()
-
-    # Keep viewer alive if your vis relies on a running process
-    while True:
-        pass
