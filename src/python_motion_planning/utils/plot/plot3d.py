@@ -18,6 +18,9 @@ class Plot3D:
 
         self.pl = pv.Plotter(window_size=(1200, 850))
         self.pl.enable_trackball_style()
+        self.pl.add_camera_orientation_widget()
+        # Ensure camera orbits around Z axis
+        self.pl.camera.up = (0, 0, 1)
         self.pl.add_key_event('Escape', lambda: self.pl.close())
         self.pl.add_key_event('r', self._replay_hotkey)
         self.pl.add_key_event('R', self._replay_hotkey)
@@ -39,13 +42,13 @@ class Plot3D:
 
         self.hide_outer_walls = True
         self.outer_shell_thickness = 1
-        self.clip_obstacles_to_path = True
+        self.clip_obstacles_to_path = False
         self.clip_margin = 2
         self.sense_color   = "#ff8800"
         self.sense_size    = 5
         self.sense_opacity = 0.9
 
-        self.batch_size = 10  # draw 10 dots/segments per cycle
+        self.batch_size = 200  # draw 10 dots/segments per cycle
 
         self._last_anim = None
 
@@ -92,6 +95,11 @@ class Plot3D:
             self.plotEllipse(ellipse)
 
         self.pl.render()
+
+        while self._window_alive():
+            self._poll()
+            time.sleep(0.01)
+
 
     def plotEnv(self, name: str, draw_edge: bool = False) -> None:
         self._ensure_window()
