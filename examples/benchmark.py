@@ -43,48 +43,49 @@ if __name__ == '__main__':
                 algorithm = algorithms[algorithm_name]
 
                 for i in range(iterations):
-                    grid_env = Grid3D(width, height, depth)
-                    XR, YR, ZR = grid_env.x_range, grid_env.y_range, grid_env.z_range
+                    for _ in range(10):
+                        grid_env = Grid3D(width, height, depth)
+                        XR, YR, ZR = grid_env.x_range, grid_env.y_range, grid_env.z_range
 
-                    # Seed random for reproducibility
-                    random.seed(i)
-                    # Random start and goal (not on walls)
-                    start = (
-                        random.randint(1, XR - 2),
-                        random.randint(1, YR - 2),
-                        random.randint(1, ZR - 2)
-                    )
-                    goal = (
-                        random.randint(1, XR - 2),
-                        random.randint(1, YR - 2),
-                        random.randint(1, ZR - 2)
-                    )
-                    # Ensure start and goal are not the same
-                    while goal == start:
+                        # Seed random for reproducibility
+                        random.seed(i)
+                        # Random start and goal (not on walls)
+                        start = (
+                            random.randint(1, XR - 2),
+                            random.randint(1, YR - 2),
+                            random.randint(1, ZR - 2)
+                        )
                         goal = (
                             random.randint(1, XR - 2),
                             random.randint(1, YR - 2),
                             random.randint(1, ZR - 2)
                         )
+                        # Ensure start and goal are not the same
+                        while goal == start:
+                            goal = (
+                                random.randint(1, XR - 2),
+                                random.randint(1, YR - 2),
+                                random.randint(1, ZR - 2)
+                            )
 
-                    obstacles = scenario_func(grid_env)
+                        obstacles = scenario_func(grid_env)
 
-                    # Ensure start/goal are always free
-                    carve_safety_bubble(obstacles, start, radius=2)
-                    carve_safety_bubble(obstacles, goal, radius=2)
+                        # Ensure start/goal are always free
+                        carve_safety_bubble(obstacles, start, radius=2)
+                        carve_safety_bubble(obstacles, goal, radius=2)
 
-                    grid_env.update(obstacles)
+                        grid_env.update(obstacles)
 
-                    planner = algorithm(start=start, goal=goal, env=grid_env)
+                        planner = algorithm(start=start, goal=goal, env=grid_env)
 
-                    start_time = time.time()
-                    cost, path, expand = planner.plan()
-                    end_time = time.time()
+                        start_time = time.time()
+                        cost, path, expand = planner.plan()
+                        end_time = time.time()
 
-                    visited_nodes = len(expand)
-                    runtime = end_time - start_time
+                        visited_nodes = len(expand)
+                        runtime = end_time - start_time
 
-                    # Write results to CSV
-                    writer.writerow([scenario, algorithm_name, runtime, cost, visited_nodes, start, goal, i])
+                        # Write results to CSV
+                        writer.writerow([scenario, algorithm_name, runtime, cost, visited_nodes, start, goal, i])
 
         print("Results saved to 3d_pathfinding_results.csv")

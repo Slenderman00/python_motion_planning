@@ -11,10 +11,20 @@ from python_motion_planning.utils import Grid3D
 from python_motion_planning.global_planner.graph_search import AStar3D, DStar3D, Dijkstra3D, GBFS3D, JPS3D, LazyThetaStar3D, ThetaStar3D, VoronoiPlanner3D, LPAStar3D
 from python_motion_planning.global_planner.evolutionary_search import ACO3D, PSO3D
 
+# Import trajectory planning components
+from python_motion_planning.trajectory import (
+    PolynomialTrajectory3D,
+    SplineTrajectory3D,
+    TimeOptimalTrajectory3D,
+    TrajectoryConstraints
+)
+import numpy as np
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Simple 3D maps for pathfinding tests")
     parser.add_argument(
         "--scenario",
+        "-s",
         choices=scenarios.keys(),
         default="door",
         help="Which map to generate"
@@ -31,8 +41,16 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--random",
+        "-r",
         action="store_true",
         help="Enable random start and goal positions"
+    )
+    parser.add_argument(
+        "--trajectory",
+        "-t",
+        choices=["none", "polynomial", "spline", "time_optimal"],
+        default="none",
+        help="Trajectory generation method (none = path only)"
     )
     args = parser.parse_args()
 
@@ -71,4 +89,63 @@ if __name__ == '__main__':
     algorithm = algorithms[args.planner]
     planner = algorithm(start=start, goal=goal, env=grid_env)
 
-    planner.run()
+    # Run path planning
+    if args.trajectory != "none":
+        # Run planning without visualization (we'll handle it with trajectory)
+        cost, path, expand = planner.plan()
+
+        if path:
+            print(f"Path found: {len(path)} waypoints, cost: {cost:.2f}")
+
+            # Generate trajectory
+            print(f"Generating {args.trajectory} trajectory...")
+
+            # Define trajectory constraints
+            constraints = TrajectoryConstraints(
+                max_velocity=np.array([2.0, 2.0, 1.5]),      # m/s
+                max_acceleration=np.array([1.5, 1.5, 1.0]),   # m/s^2
+                max_jerk=np.array([1.0, 1.0, 0.8]),          # m/s^3
+                min_time_step=0.05
+            )
+
+            trajectory = None
+            if args.trajectory == "polynomial":
+                trajectory = PolynomialTrajectory3D(
+                    path=path,
+                    constraints=constraints
+                )
+                trajectory.optimize_time_allocation(max_iterations=5)
+            elif args.trajectory == "spline":
+                trajectory = SplineTrajectory3D(
+                    path=path,
+                    constraints=constraints,
+                    spline_degree=3
+                )
+            elif args.trajectory == "time_optimal":
+                trajectory = TimeOptimalTrajectory3D(
+                    path=path,
+                    constraints=constraints,
+                    path_resolution=0.05
+                )
+
+            if trajectory:
+                trajectory_points = trajectory.generate()
+                print(f"Trajectory generated: {len(trajectory_points)} points, duration: {trajectory.total_time:.2f}s")
+
+                # Check constraints
+                constraint_status = trajectory.check_constraints()
+                print(f"Constraints satisfied: {constraint_status}")
+
+                # Visualize
+                planner.plot.animation(
+                    path=path,
+                    name=f"{args.planner.title()} + {args.trajectory.title()} Trajectory",
+                    cost=cost,
+                    expand=expand,
+                    trajectory=trajectory
+                )
+        else:
+            print("No path found!")
+    else:
+        # Original visualization without trajectory
+        planner.run()
