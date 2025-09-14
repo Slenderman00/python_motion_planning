@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pyvista as pv
 
 from ..environment.env3d import Env3D, Grid3D, Map3D, Node3D
-from ..environment.env import Env, Grid, Map, Node
+from ...trajectory import TrajectoryBase
 
 pv.global_theme.allow_empty_mesh = True
 
@@ -18,6 +18,9 @@ class Plot3D:
 
         self.pl = pv.Plotter(window_size=(1200, 850))
         self.pl.enable_trackball_style()
+        self.pl.add_camera_orientation_widget()
+        # Ensure camera orbits around Z axis
+        self.pl.camera.up = (0, 0, 1)
         self.pl.add_key_event('Escape', lambda: self.pl.close())
         self.pl.add_key_event('r', self._replay_hotkey)
         self.pl.add_key_event('R', self._replay_hotkey)
@@ -37,15 +40,21 @@ class Plot3D:
         self._agent_sphere_actor = None
         self._agent_arrow_actor  = None
 
+        # Trajectory visualization
+        self._trajectory_actor = None
+        self._velocity_vectors_actor = None
+        self._acceleration_vectors_actor = None
+        self._trajectory_data = None
+
         self.hide_outer_walls = True
         self.outer_shell_thickness = 1
-        self.clip_obstacles_to_path = True
+        self.clip_obstacles_to_path = False
         self.clip_margin = 2
         self.sense_color   = "#ff8800"
         self.sense_size    = 5
         self.sense_opacity = 0.9
 
-        self.batch_size = 10  # draw 10 dots/segments per cycle
+        self.batch_size = 200  # draw 10 dots/segments per cycle
 
         self._last_anim = None
 
@@ -60,15 +69,14 @@ class Plot3D:
         lookahead_pts: list = None,
         cost_curve: list = None,
         ellipse: np.ndarray = None,
-        block_at_end: bool = True,
-        total_time_sec: float = None,  # ignored
+        trajectory: TrajectoryBase = None,  # New parameter for trajectory
     ) -> None:
         title = f"{name}\ncost: {cost}" if cost is not None else name
 
         self._last_anim = dict(
             path=path, title=title, expand=expand,
             history_pose=history_pose, predict_path=predict_path, lookahead_pts=lookahead_pts,
-            cost_curve=cost_curve, ellipse=ellipse
+            cost_curve=cost_curve, ellipse=ellipse, trajectory=trajectory
         )
 
         self.plotEnv(title)
@@ -84,6 +92,9 @@ class Plot3D:
             if self.clip_obstacles_to_path and isinstance(self.env, Grid3D):
                 self._clip_and_rerender_obstacles_around_path(path, margin=self.clip_margin)
 
+        if trajectory is not None:
+            self.plotTrajectory(trajectory)
+
         if cost_curve:
             plt.figure("cost curve")
             self.plotCostCurve(cost_curve, title)
@@ -92,6 +103,11 @@ class Plot3D:
             self.plotEllipse(ellipse)
 
         self.pl.render()
+
+        while self._window_alive():
+            self._poll()
+            time.sleep(0.01)
+
 
     def plotEnv(self, name: str, draw_edge: bool = False) -> None:
         self._ensure_window()
@@ -106,6 +122,9 @@ class Plot3D:
         self._path_actor = None
         self._agent_sphere_actor = None
         self._agent_arrow_actor  = None
+        self._trajectory_actor = None
+        self._velocity_vectors_actor = None
+        self._acceleration_vectors_actor = None
 
         self.pl.add_text(name, font_size=12)
         self.pl.add_mesh(pv.Sphere(radius=0.6, center=(self.start.x, self.start.y, self.start.z)), color="red", name="start")
@@ -340,7 +359,7 @@ class Plot3D:
             except Exception: pass
 
         self._obs_actor = self.pl.add_mesh(
-            surf, color=(0.15, 0.15, 0.15), opacity=0.22, specular=0.0, backface_culling=True
+            surf, color=(0.15, 0.15, 0.15), opacity=0.6, specular=0.0, backface_culling=True
         )
 
     def _clip_and_rerender_obstacles_around_path(self, path, margin=2):
@@ -408,6 +427,137 @@ class Plot3D:
         except Exception:
             pass
 
+    def plotTrajectory(self, trajectory: TrajectoryBase,
+                      show_velocity: bool = True,
+                      show_acceleration: bool = False,
+                      velocity_scale: float = 0.1,
+                      acceleration_scale: float = 0.05,
+                      sample_rate: int = 10) -> None:
+        """
+        Plot a trajectory with velocity and acceleration visualization.
+
+        Args:
+            trajectory: Trajectory object with computed trajectory points
+            show_velocity: Whether to show velocity vectors
+            show_acceleration: Whether to show acceleration vectors
+            velocity_scale: Scale factor for velocity vectors
+            acceleration_scale: Scale factor for acceleration vectors
+            sample_rate: Show vectors every N points
+        """
+        # Generate trajectory if not already done
+        if not trajectory.trajectory_points:
+            trajectory.generate()
+
+        # Get trajectory data
+        positions = trajectory.get_positions()
+        velocities = trajectory.get_velocities()
+        accelerations = trajectory.get_accelerations()
+        times = trajectory.get_times()
+
+        # Compute velocity magnitude for coloring
+        velocity_magnitude = np.linalg.norm(velocities, axis=1)
+
+        # Create polyline for trajectory path with color mapping
+        if len(positions) > 1:
+            poly = self._polyline(positions, close=False)
+
+            # Remove old trajectory actor if exists
+            if self._trajectory_actor is not None:
+                try:
+                    self.pl.remove_actor(self._trajectory_actor)
+                except Exception:
+                    pass
+
+            # Add trajectory with velocity-based coloring
+            self._trajectory_actor = self.pl.add_mesh(
+                poly,
+                scalars=velocity_magnitude,
+                cmap='plasma',
+                line_width=3,
+                show_scalar_bar=True,
+                scalar_bar_args={'title': 'Velocity (m/s)'}
+            )
+
+        # Show velocity vectors
+        if show_velocity and len(positions) > 1:
+            # Sample points for vector visualization
+            indices = range(0, len(positions), sample_rate)
+
+            # Create arrows for velocity vectors
+            arrow_starts = []
+            arrow_directions = []
+
+            for i in indices:
+                if np.linalg.norm(velocities[i]) > 1e-6:
+                    arrow_starts.append(positions[i])
+                    # Normalize and scale velocity for visualization
+                    vel_norm = velocities[i] / np.linalg.norm(velocities[i])
+                    arrow_directions.append(vel_norm * velocity_scale)
+
+            if arrow_starts:
+                # Remove old velocity vectors
+                if self._velocity_vectors_actor is not None:
+                    try:
+                        self.pl.remove_actor(self._velocity_vectors_actor)
+                    except Exception:
+                        pass
+
+                # Create arrow glyphs
+                arrows = pv.PolyData(np.array(arrow_starts))
+                arrows["vectors"] = np.array(arrow_directions)
+                arrow_glyphs = arrows.glyph(orient="vectors", scale="vectors", factor=1.0)
+
+                self._velocity_vectors_actor = self.pl.add_mesh(
+                    arrow_glyphs,
+                    color='green',
+                    opacity=0.7
+                )
+
+        # Show acceleration vectors
+        if show_acceleration and len(positions) > 1:
+            # Sample points for vector visualization
+            indices = range(0, len(positions), sample_rate)
+
+            # Create arrows for acceleration vectors
+            arrow_starts = []
+            arrow_directions = []
+
+            for i in indices:
+                if np.linalg.norm(accelerations[i]) > 1e-6:
+                    arrow_starts.append(positions[i])
+                    # Normalize and scale acceleration for visualization
+                    acc_norm = accelerations[i] / np.linalg.norm(accelerations[i])
+                    arrow_directions.append(acc_norm * acceleration_scale)
+
+            if arrow_starts:
+                # Remove old acceleration vectors
+                if self._acceleration_vectors_actor is not None:
+                    try:
+                        self.pl.remove_actor(self._acceleration_vectors_actor)
+                    except Exception:
+                        pass
+
+                # Create arrow glyphs
+                arrows = pv.PolyData(np.array(arrow_starts))
+                arrows["vectors"] = np.array(arrow_directions)
+                arrow_glyphs = arrows.glyph(orient="vectors", scale="vectors", factor=1.0)
+
+                self._acceleration_vectors_actor = self.pl.add_mesh(
+                    arrow_glyphs,
+                    color='red',
+                    opacity=0.5
+                )
+
+        # Store trajectory data for animation
+        self._trajectory_data = {
+            'positions': positions,
+            'velocities': velocities,
+            'times': times,
+            'trajectory': trajectory
+        }
+
+        self.pl.render()
+
     def _window_alive(self) -> bool:
         if getattr(self.pl, "_closed", False):
             return False
@@ -432,4 +582,6 @@ class Plot3D:
                 self._clip_and_rerender_obstacles_around_path(p["path"], margin=self.clip_margin)
         if p["ellipse"] is not None:
             self.plotEllipse(p["ellipse"])
+        if p.get("trajectory") is not None:
+            self.plotTrajectory(p["trajectory"])
         self.pl.render()

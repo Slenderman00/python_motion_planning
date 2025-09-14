@@ -148,17 +148,69 @@ def scenario_3d_maze(grid, seed=0, vertical_connector_prob=0.12):
     return obs
 
 
+def scenario_city(grid, skyscraper_density=1, seed=2):
+    """
+    City scenario: dense vertical skyscrapers (columns) distributed throughout the grid.
+    Skyscrapers are tough obstacles for pathfinding, forcing navigation around them.
+    """
+    XR, YR, ZR = grid.x_range, grid.y_range, grid.z_range
+    rng = random.Random(seed)
+    obs = shell_walls(grid)
+
+    # Place skyscrapers as vertical columns, avoiding shell walls and leaving some corridors
+    num_skyscrapers = int((XR - 2) * (YR - 2) * skyscraper_density)
+    possible_positions = [
+        (x, y)
+        for x in range(2, XR - 2)
+        for y in range(2, YR - 2)
+        if x % 3 != 0 and y % 3 != 0  # leave some corridors for navigation
+    ]
+    rng.shuffle(possible_positions)
+    skyscraper_positions = possible_positions[:num_skyscrapers]
+
+    for x, y in skyscraper_positions:
+        # Each skyscraper gets a random height (at least 3, up to ZR-2)
+        height = rng.randint(3, ZR - 2) if ZR > 3 else 1
+        base_z = 1
+        for z in range(base_z, base_z + height):
+            if z < ZR - 1:
+                obs.add((x, y, z))
+
+    return obs
+
+
 def carve_safety_bubble(obs, center, radius=1):
     """Guarantee free space around start/goal."""
     cx, cy, cz = center
+    # Determine grid bounds from existing obstacles (assumes shell_walls present)
+    xs = [x for x, _, _ in obs]
+    ys = [y for _, y, _ in obs]
+    zs = [z for _, _, z in obs]
+    if xs and ys and zs:
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        min_z, max_z = min(zs), max(zs)
+    else:
+        # Fallback: allow all
+        min_x = min_y = min_z = 0
+        max_x = max_y = max_z = 999999
     for dx in range(-radius, radius + 1):
         for dy in range(-radius, radius + 1):
             for dz in range(-radius, radius + 1):
-                obs.discard((cx + dx, cy + dy, cz + dz))
+                x, y, z = cx + dx, cy + dy, cz + dz
+                # Only carve if not on boundary
+                if (
+                    x > min_x and x < max_x and
+                    y > min_y and y < max_y and
+                    z > min_z and z < max_z
+                ):
+                    obs.discard((x, y, z))
+
 
 scenarios = {
     "empty": lambda grid_env: scenario_empty_box(grid_env),
     "door": lambda grid_env: scenario_two_rooms_with_door(grid_env, door_size=2),
     "floors": lambda grid_env: scenario_stacked_floors(grid_env, floors=3, hole_size=2),
     "maze": lambda grid_env: scenario_3d_maze(grid_env, seed=0),
+    "city": lambda grid_env: scenario_city(grid_env, skyscraper_density=0.18, seed=0),
 }
